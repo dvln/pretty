@@ -89,6 +89,14 @@ func Sprintf(format string, a ...interface{}) string {
 	return fmt.Sprintf(format, wrap(a, false)...)
 }
 
+// Sprintln is a convenience wrapper for fmt.Sprintln.
+//
+// Calling Sprintln(x, y) is equivalent to
+// fmt.Sprintln(Formatter(x), Formatter(y)).
+func Sprintln(a ...interface{}) string {
+	return fmt.Sprintln(wrap(a, false)...)
+}
+
 func wrap(a []interface{}, force bool) []interface{} {
 	w := make([]interface{}, len(a))
 	for i, x := range a {
