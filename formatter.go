@@ -5,7 +5,9 @@ import (
 	"io"
 	"reflect"
 	"strconv"
+	"strings"
 	"text/tabwriter"
+	"unicode"
 
 	"github.com/kr/text"
 )
@@ -13,6 +15,9 @@ import (
 const (
 	limit = 50
 )
+
+var outputIndentLevel = 4
+var humanize = false
 
 type formatter struct {
 	x     interface{}
@@ -54,9 +59,25 @@ func (fo formatter) passThrough(f fmt.State, c rune) {
 	fmt.Fprintf(f, s, fo.x)
 }
 
+func OutputIndentLevel() int {
+	return outputIndentLevel
+}
+
+func SetOutputIndentLevel(indent int) {
+	outputIndentLevel = indent
+}
+
+func Humanize() bool {
+	return humanize
+}
+
+func SetHumanize(b bool) {
+	humanize = b
+}
+
 func (fo formatter) Format(f fmt.State, c rune) {
 	if fo.force || c == 'v' && f.Flag('#') && f.Flag(' ') {
-		w := tabwriter.NewWriter(f, 4, 4, 1, ' ', 0)
+		w := tabwriter.NewWriter(f, outputIndentLevel, outputIndentLevel, 1, ' ', 0)
 		p := &printer{tw: w, Writer: w, visited: make(map[visit]int)}
 		p.printValue(reflect.ValueOf(fo.x), true, fo.quote)
 		w.Flush()
@@ -74,18 +95,97 @@ type printer struct {
 
 func (p *printer) indent() *printer {
 	q := *p
-	q.tw = tabwriter.NewWriter(p.Writer, 4, 4, 1, ' ', 0)
+	q.tw = tabwriter.NewWriter(p.Writer, outputIndentLevel, outputIndentLevel, 1, ' ', 0)
 	q.Writer = text.NewIndentWriter(q.tw, []byte{'\t'})
 	return &q
 }
 
 func (p *printer) printInline(v reflect.Value, x interface{}, showType bool) {
-	if showType {
+	if showType && !humanize {
 		io.WriteString(p, v.Type().String())
 		fmt.Fprintf(p, "(%#v)", x)
 	} else {
-		fmt.Fprintf(p, "%#v", x)
+		result := fmt.Sprintf("%#v", x)
+		// if we have a whitespace-only non-empty string, quote it
+		if humanize && result != "" && strings.TrimSpace(result) == "" {
+			fmt.Fprintf(p, "\"%s\"", result)
+		} else {
+			fmt.Fprintf(p, "%s", result)
+		}
 	}
+}
+
+// tagOptions is the string following a comma in a struct field's "json"
+// tag, or the empty string. It does not include the leading comma.
+type tagOptions string
+
+// parseTag splits a struct field's json tag into its name and
+// comma-separated options.
+func parseTag(tag string) (string, tagOptions) {
+	if idx := strings.Index(tag, ","); idx != -1 {
+		return tag[:idx], tagOptions(tag[idx+1:])
+	}
+	return tag, tagOptions("")
+}
+
+// Contains reports whether a comma-separated list of options
+// contains a particular substr flag. substr must be surrounded by a
+// string boundary or commas.
+func (o tagOptions) Contains(optionName string) bool {
+	if len(o) == 0 {
+		return false
+	}
+	s := string(o)
+	for s != "" {
+		var next string
+		i := strings.Index(s, ",")
+		if i >= 0 {
+			s, next = s[:i], s[i+1:]
+		}
+		if s == optionName {
+			return true
+		}
+		s = next
+	}
+	return false
+}
+
+// isValidTag is borrowed from Go's encoding/json
+func isValidTag(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, c := range s {
+		switch {
+		case strings.ContainsRune("!#$%&()*+-./:<=>?@[]^_{|}~ ", c):
+			// Backslash and quote chars are reserved, but
+			// otherwise any punctuation chars are allowed
+			// in a tag name.
+		default:
+			if !unicode.IsLetter(c) && !unicode.IsDigit(c) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func isEmptyValue(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.Array, reflect.Map, reflect.Slice, reflect.String:
+		return v.Len() == 0
+	//case reflect.Bool:
+	//	return false
+	//case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+	//	return v.Int() == 0
+	//case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+	//	return v.Uint() == 0
+	//case reflect.Float32, reflect.Float64:
+	//	return v.Float() == 0
+	case reflect.Interface, reflect.Ptr:
+		return v.IsNil()
+	}
+	return false
 }
 
 // printValue must keep track of already-printed pointer values to avoid
@@ -101,6 +201,10 @@ func (p *printer) printValue(v reflect.Value, showType, quote bool) {
 		return
 	}
 
+	if humanize {
+		quote = false
+		showType = false
+	}
 	switch v.Kind() {
 	case reflect.Bool:
 		p.printInline(v, v.Bool(), showType)
@@ -119,28 +223,47 @@ func (p *printer) printValue(v reflect.Value, showType, quote bool) {
 		if showType {
 			io.WriteString(p, t.String())
 		}
-		writeByte(p, '{')
+		if !humanize {
+			writeByte(p, '{')
+		}
 		if nonzero(v) {
 			expand := !canInline(v.Type())
+			if humanize {
+				expand = true
+			}
 			pp := p
 			if expand {
-				writeByte(p, '\n')
-				pp = p.indent()
+				if !humanize {
+					writeByte(p, '\n')
+					pp = p.indent()
+				}
 			}
 			keys := v.MapKeys()
 			for i := 0; i < v.Len(); i++ {
 				showTypeInStruct := true
+				if humanize {
+					showTypeInStruct = false
+				}
 				k := keys[i]
 				mv := v.MapIndex(k)
+				//eriknow.... could upper case humanize map string keys (?)
+				/*if humanize && k.Kind() == reflect.String {
+					k := (reflect.Value)str.UpperHumanize(string(k))
+				}
+				*/
 				pp.printValue(k, false, true)
 				writeByte(pp, ':')
 				if expand {
 					writeByte(pp, '\t')
 				}
-				showTypeInStruct = t.Elem().Kind() == reflect.Interface
+				if !humanize {
+					showTypeInStruct = t.Elem().Kind() == reflect.Interface
+				}
 				pp.printValue(mv, showTypeInStruct, true)
 				if expand {
-					io.WriteString(pp, ",\n")
+					if !humanize {
+						io.WriteString(pp, ",\n")
+					}
 				} else if i < v.Len()-1 {
 					io.WriteString(pp, ", ")
 				}
@@ -149,7 +272,9 @@ func (p *printer) printValue(v reflect.Value, showType, quote bool) {
 				pp.tw.Flush()
 			}
 		}
-		writeByte(p, '}')
+		if !humanize {
+			writeByte(p, '}')
+		}
 	case reflect.Struct:
 		t := v.Type()
 		if v.CanAddr() {
@@ -162,10 +287,12 @@ func (p *printer) printValue(v reflect.Value, showType, quote bool) {
 			p.visited[vis] = p.depth
 		}
 
-		if showType {
+		if showType && !humanize {
 			io.WriteString(p, t.String())
 		}
-		writeByte(p, '{')
+		if !humanize {
+			writeByte(p, '{')
+		}
 		if nonzero(v) {
 			expand := !canInline(v.Type())
 			pp := p
@@ -175,16 +302,46 @@ func (p *printer) printValue(v reflect.Value, showType, quote bool) {
 			}
 			for i := 0; i < v.NumField(); i++ {
 				showTypeInStruct := true
+				if humanize {
+					showTypeInStruct = false
+				}
 				if f := t.Field(i); f.Name != "" {
-					io.WriteString(pp, f.Name)
+					// grab the fields info from the struct
+					//fields := cachedTypeFields(t)
+					//eriknow,erikfuck
+					name := f.Name
+					omitEmpty := false
+					if humanize {
+						tag := f.Tag.Get("pretty")
+						if tag == "-" {
+							continue
+						}
+						newName, opts := parseTag(tag)
+						if isValidTag(newName) {
+							name = newName
+						}
+						omitEmpty = opts.Contains("omitempty")
+						val := getField(v, i)
+						if omitEmpty && isEmptyValue(val) {
+							continue
+						}
+					}
+
+					//eriknow... old way of doing it
+					//io.WriteString(pp, f.Name)
+					io.WriteString(pp, name)
 					writeByte(pp, ':')
 					if expand {
 						writeByte(pp, '\t')
 					}
-					showTypeInStruct = labelType(f.Type)
+					if !humanize {
+						showTypeInStruct = labelType(f.Type)
+					}
 				}
 				pp.printValue(getField(v, i), showTypeInStruct, true)
-				if expand {
+				if humanize {
+					writeByte(pp, '\n')
+				} else if expand {
 					io.WriteString(pp, ",\n")
 				} else if i < v.NumField()-1 {
 					io.WriteString(pp, ", ")
@@ -194,7 +351,9 @@ func (p *printer) printValue(v reflect.Value, showType, quote bool) {
 				pp.tw.Flush()
 			}
 		}
-		writeByte(p, '}')
+		if !humanize {
+			writeByte(p, '}')
+		}
 	case reflect.Interface:
 		switch e := v.Elem(); {
 		case e.Kind() == reflect.Invalid:
@@ -220,17 +379,26 @@ func (p *printer) printValue(v reflect.Value, showType, quote bool) {
 			io.WriteString(p, "nil")
 			break
 		}
-		writeByte(p, '{')
+		if !humanize {
+			writeByte(p, '{')
+		}
 		expand := !canInline(v.Type())
+		if humanize {
+			expand = true
+		}
 		pp := p
 		if expand {
-			writeByte(p, '\n')
-			pp = p.indent()
+			if !humanize {
+				writeByte(p, '\n')
+				pp = p.indent()
+			}
 		}
 		for i := 0; i < v.Len(); i++ {
 			showTypeInSlice := t.Elem().Kind() == reflect.Interface
 			pp.printValue(v.Index(i), showTypeInSlice, true)
-			if expand {
+			if humanize {
+				writeByte(pp, '\n')
+			} else if expand {
 				io.WriteString(pp, ",\n")
 			} else if i < v.Len()-1 {
 				io.WriteString(pp, ", ")
@@ -239,13 +407,19 @@ func (p *printer) printValue(v reflect.Value, showType, quote bool) {
 		if expand {
 			pp.tw.Flush()
 		}
-		writeByte(p, '}')
+		if !humanize {
+			writeByte(p, '}')
+		}
 	case reflect.Ptr:
 		e := v.Elem()
 		if !e.IsValid() {
-			writeByte(p, '(')
-			io.WriteString(p, v.Type().String())
-			io.WriteString(p, ")(nil)")
+			if humanize {
+				io.WriteString(p, "nil")
+			} else {
+				writeByte(p, '(')
+				io.WriteString(p, v.Type().String())
+				io.WriteString(p, ")(nil)")
+			}
 		} else {
 			pp := *p
 			pp.depth++
@@ -313,7 +487,7 @@ func labelType(t reflect.Type) bool {
 }
 
 func (p *printer) fmtString(s string, quote bool) {
-	if quote {
+	if quote || (humanize && s != "" && strings.TrimSpace(s) == "") {
 		s = strconv.Quote(s)
 	}
 	io.WriteString(p, s)
