@@ -170,18 +170,13 @@ func isValidTag(s string) bool {
 	return true
 }
 
+// isEmptyValue determines for "humanistic" output if we want to see a given
+// type or not... different than JSON in that we typically do want to see
+// true or false settings, and even 0 values for various numerical types...
 func isEmptyValue(v reflect.Value) bool {
 	switch v.Kind() {
 	case reflect.Array, reflect.Map, reflect.Slice, reflect.String:
 		return v.Len() == 0
-	//case reflect.Bool:
-	//	return false
-	//case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-	//	return v.Int() == 0
-	//case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-	//	return v.Uint() == 0
-	//case reflect.Float32, reflect.Float64:
-	//	return v.Float() == 0
 	case reflect.Interface, reflect.Ptr:
 		return v.IsNil()
 	}
@@ -246,11 +241,6 @@ func (p *printer) printValue(v reflect.Value, showType, quote bool) {
 				}
 				k := keys[i]
 				mv := v.MapIndex(k)
-				//eriknow.... could upper case humanize map string keys (?)
-				/*if humanize && k.Kind() == reflect.String {
-					k := (reflect.Value)str.UpperHumanize(string(k))
-				}
-				*/
 				pp.printValue(k, false, true)
 				writeByte(pp, ':')
 				if expand {
@@ -306,9 +296,6 @@ func (p *printer) printValue(v reflect.Value, showType, quote bool) {
 					showTypeInStruct = false
 				}
 				if f := t.Field(i); f.Name != "" {
-					// grab the fields info from the struct
-					//fields := cachedTypeFields(t)
-					//eriknow,erikfuck
 					name := f.Name
 					omitEmpty := false
 					if humanize {
@@ -326,9 +313,6 @@ func (p *printer) printValue(v reflect.Value, showType, quote bool) {
 							continue
 						}
 					}
-
-					//eriknow... old way of doing it
-					//io.WriteString(pp, f.Name)
 					io.WriteString(pp, name)
 					writeByte(pp, ':')
 					if expand {
