@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"io"
 	"log"
+
+	"github.com/kr/text"
 )
 
 // Errorf is a convenience wrapper for fmt.Errorf.
@@ -18,7 +20,8 @@ import (
 // Calling Errorf(f, x, y) is equivalent to
 // fmt.Errorf(f, Formatter(x), Formatter(y)).
 func Errorf(format string, a ...interface{}) error {
-	return fmt.Errorf(format, wrap(a, false)...)
+	str := text.Indent(fmt.Sprintf(format, wrap(a, false)...), outputPrefixStr)
+	return fmt.Errorf("%s", str)
 }
 
 // Fprintf is a convenience wrapper for fmt.Fprintf.
@@ -26,7 +29,8 @@ func Errorf(format string, a ...interface{}) error {
 // Calling Fprintf(w, f, x, y) is equivalent to
 // fmt.Fprintf(w, f, Formatter(x), Formatter(y)).
 func Fprintf(w io.Writer, format string, a ...interface{}) (n int, error error) {
-	return fmt.Fprintf(w, format, wrap(a, false)...)
+	str := text.Indent(fmt.Sprintf(format, wrap(a, false)...), outputPrefixStr)
+	return fmt.Fprint(w, str)
 }
 
 // Log is a convenience wrapper for log.Printf.
@@ -35,7 +39,8 @@ func Fprintf(w io.Writer, format string, a ...interface{}) (n int, error error) 
 // log.Print(Formatter(x), Formatter(y)), but each operand is
 // formatted with "%# v".
 func Log(a ...interface{}) {
-	log.Print(wrap(a, true)...)
+	str := text.Indent(fmt.Sprint(wrap(a, true)...), outputPrefixStr)
+	log.Print(str)
 }
 
 // Logf is a convenience wrapper for log.Printf.
@@ -43,7 +48,8 @@ func Log(a ...interface{}) {
 // Calling Logf(f, x, y) is equivalent to
 // log.Printf(f, Formatter(x), Formatter(y)).
 func Logf(format string, a ...interface{}) {
-	log.Printf(format, wrap(a, false)...)
+	str := text.Indent(fmt.Sprintf(format, wrap(a, false)...), outputPrefixStr)
+	log.Print(str)
 }
 
 // Logln is a convenience wrapper for log.Printf.
@@ -52,7 +58,8 @@ func Logf(format string, a ...interface{}) {
 // log.Println(Formatter(x), Formatter(y)), but each operand is
 // formatted with "%# v".
 func Logln(a ...interface{}) {
-	log.Println(wrap(a, true)...)
+	str := text.Indent(fmt.Sprintln(wrap(a, true)...), outputPrefixStr)
+	log.Print(str)
 }
 
 // Print pretty-prints its operands and writes to standard output.
@@ -61,7 +68,8 @@ func Logln(a ...interface{}) {
 // fmt.Print(Formatter(x), Formatter(y)), but each operand is
 // formatted with "%# v".
 func Print(a ...interface{}) (n int, errno error) {
-	return fmt.Print(wrap(a, true)...)
+	str := text.Indent(fmt.Sprint(wrap(a, true)...), outputPrefixStr)
+	return fmt.Print(str)
 }
 
 // Printf is a convenience wrapper for fmt.Printf.
@@ -69,7 +77,8 @@ func Print(a ...interface{}) (n int, errno error) {
 // Calling Printf(f, x, y) is equivalent to
 // fmt.Printf(f, Formatter(x), Formatter(y)).
 func Printf(format string, a ...interface{}) (n int, errno error) {
-	return fmt.Printf(format, wrap(a, false)...)
+	str := text.Indent(fmt.Sprintf(format, wrap(a, false)...), outputPrefixStr)
+	return fmt.Print(str)
 }
 
 // Println pretty-prints its operands and writes to standard output.
@@ -78,7 +87,8 @@ func Printf(format string, a ...interface{}) (n int, errno error) {
 // fmt.Println(Formatter(x), Formatter(y)), but each operand is
 // formatted with "%# v".
 func Println(a ...interface{}) (n int, errno error) {
-	return fmt.Println(wrap(a, true)...)
+	str := text.Indent(fmt.Sprintln(wrap(a, true)...), outputPrefixStr)
+	return fmt.Println(str)
 }
 
 // Sprintf is a convenience wrapper for fmt.Sprintf.
@@ -86,7 +96,7 @@ func Println(a ...interface{}) (n int, errno error) {
 // Calling Sprintf(f, x, y) is equivalent to
 // fmt.Sprintf(f, Formatter(x), Formatter(y)).
 func Sprintf(format string, a ...interface{}) string {
-	return fmt.Sprintf(format, wrap(a, false)...)
+	return text.Indent(fmt.Sprintf(format, wrap(a, false)...), outputPrefixStr)
 }
 
 // Sprintln is a convenience wrapper for fmt.Sprintln.
@@ -94,7 +104,7 @@ func Sprintf(format string, a ...interface{}) string {
 // Calling Sprintln(x, y) is equivalent to
 // fmt.Sprintln(Formatter(x), Formatter(y)).
 func Sprintln(a ...interface{}) string {
-	return fmt.Sprintln(wrap(a, false)...)
+	return text.Indent(fmt.Sprintln(wrap(a, false)...), outputPrefixStr)
 }
 
 func wrap(a []interface{}, force bool) []interface{} {
