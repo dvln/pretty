@@ -148,6 +148,114 @@ func TestGoSyntax(t *testing.T) {
 	}
 }
 
+var humanizesyntax = []test{
+	{nil, `nil`},
+	{"", ``},
+	{" ", `" "`},
+	{"a", `a`},
+	{1, "1"},
+	{1.0, "1"},
+	{[]int(nil), "nil"},
+	{[0]int{}, ""},
+	{complex(1, 0), "(1+0i)"},
+	{unsafe.Pointer(uintptr(unsafe.Pointer(&long))), fmt.Sprintf("0x%02x", uintptr(unsafe.Pointer(&long)))},
+	{func(int) {}, "func(int) {...}"},
+	{map[int]int{1: 1}, "1: 1\n"}, // CONSIDER: is \n needed here?
+	{int32(1), "1"},
+	{io.EOF, "s: EOF\n"},   // CONSIDER: is \n needed here?
+	{[]string{"a"}, "a\n"}, // CONSIDER: is \n needed here?
+	{
+		[]string{long},
+		"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\n", // CONSIDER: is \n needed here?
+	},
+	{F(5), "5"},
+	{
+		SA{&T{1, 2}, T{3, 4}},
+		"t: \n  x: 1\n  y: 2\nv: \n  x: 3\n  y: 4\n",
+	},
+	{
+		map[int][]byte{1: []byte{}},
+		"1: \n",
+	},
+	{
+		map[int]T{1: T{}},
+		"1: \n  x: 0\n  y: 0\n",
+	},
+	{
+		long,
+		"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+	},
+	{
+		LongStructTypeName{
+			longFieldName:      LongStructTypeName{},
+			otherLongFieldName: long,
+		},
+		`longFieldName: 
+  longFieldName:      nil
+  otherLongFieldName: nil
+otherLongFieldName: abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789
+`,
+	},
+	{
+		&LongStructTypeName{
+			longFieldName:      &LongStructTypeName{},
+			otherLongFieldName: (*LongStructTypeName)(nil),
+		},
+		`longFieldName: 
+  longFieldName:      nil
+  otherLongFieldName: nil
+otherLongFieldName: nil
+`,
+	},
+	{
+		[]LongStructTypeName{
+			{nil, nil},
+			{3, 3},
+			{long, nil},
+		},
+		`longFieldName:      nil
+otherLongFieldName: nil
+longFieldName:      3
+otherLongFieldName: 3
+longFieldName:      abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789
+otherLongFieldName: nil
+`,
+	},
+	{
+		[]interface{}{
+			LongStructTypeName{nil, nil},
+			[]byte{1, 2, 3},
+			T{3, 4},
+			LongStructTypeName{long, nil},
+		},
+		`longFieldName:      nil
+otherLongFieldName: nil
+0x10x20x3x: 3
+y: 4
+longFieldName:      abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789
+otherLongFieldName: nil
+`,
+	},
+}
+
+func TestHumanizeSyntax(t *testing.T) {
+	// test indentation setting and "humanized" output format
+	SetOutputIndentLevel(2)
+	SetHumanize(true)
+	for _, tt := range humanizesyntax {
+		s := fmt.Sprintf("%# v", Formatter(tt.v))
+		if tt.s != s {
+			t.Errorf("expected %q", tt.s)
+			t.Errorf("got      %q", s)
+			t.Errorf("expraw\n%s", tt.s)
+			t.Errorf("gotraw\n%s", s)
+		}
+	}
+	// reset to usual values:
+	SetOutputIndentLevel(4)
+	SetHumanize(false)
+}
+
 type I struct {
 	i int
 	R interface{}

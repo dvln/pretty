@@ -119,9 +119,9 @@ func (w diffWriter) diff(av, bv reflect.Value) {
 	}
 }
 
-func (d diffWriter) relabel(name string) (d1 diffWriter) {
-	d1 = d
-	if d.l != "" && name[0] != '[' {
+func (w diffWriter) relabel(name string) (d1 diffWriter) {
+	d1 = w
+	if w.l != "" && name[0] != '[' {
 		d1.l += "."
 	}
 	d1.l += name

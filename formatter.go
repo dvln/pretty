@@ -140,7 +140,7 @@ func OutputPrefixStr() string {
 	return outputPrefixStr
 }
 
-// SetOutputPrefixStr
+// SetOutputPrefixStr sets the output prefix string to the given string
 func SetOutputPrefixStr(s string) {
 	outputPrefixStr = s
 }
@@ -536,7 +536,9 @@ func (p *printer) printValue(v reflect.Value, showType, quote bool) {
 		} else {
 			pp := *p
 			pp.depth++
-			writeByte(pp, '&')
+			if !humanize {
+				writeByte(pp, '&')
+			}
 			pp.printValue(e, true, true)
 		}
 	case reflect.Chan:
