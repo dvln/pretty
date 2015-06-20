@@ -12,7 +12,7 @@ import (
 	"io"
 	"log"
 
-	"github.com/kr/text"
+	"github.com/dvln/text"
 )
 
 // Errorf is a convenience wrapper for fmt.Errorf.

@@ -9,7 +9,7 @@ import (
 	"text/tabwriter"
 	"unicode"
 
-	"github.com/kr/text"
+	"github.com/dvln/text"
 )
 
 const (
